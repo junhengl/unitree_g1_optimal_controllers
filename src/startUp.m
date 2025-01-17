@@ -10,11 +10,13 @@ x_i = [0; 0; 0;
 q_leg_l_i = [-15; 0; 0; 30; -15; 0];
 q_leg_r_i = [-15; 0; 0; 30; -15; 0];
 
-% parameteres
-Kp_ground = 1e6;
-Kd_ground = 1e4;
+% parameters
+Kp_ground = 1e5;
+Kd_ground = 1e3;
 mu = 1.5;
-q_damping = 0.1;
+q_damping = 0.2;
+kp_arm =100;
+kd_arm = 6;
 
 % foot contact approximated by point clouds:
 npt = 5; % number of contact points per line

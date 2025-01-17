@@ -15,6 +15,9 @@ R_foot=Rotm_foot(q_leg(1),q_leg(2),q_leg(3),q_leg(4),q_leg(5),q_leg(6),q_leg(7),
 R_foot_R=R_foot(1:3,:);
 R_foot_L=R_foot(4:6,:);
 
+R_foot_R=R;
+R_foot_L=R;
+
 while yaw_correction==0
     if eul_des(3,1)-eul(3,1)>pi
         eul(3,1)=eul(3,1)+2*pi;
@@ -36,8 +39,8 @@ x_ref = getReferenceTrajectory(x_fb, mpc)
 
 %% Robot simplified dynamics physical properties 
 mu = mpc.mu; %friction coefficient
-m = 30; % mass (inclulded body, hips, and thighs)
-Ib = diag([0.9413, 0.9200, 0.2691]); % SRBD MoI (included body, hips, and thighs)
+m = 35; % mass (inclulded body, hips, and thighs)
+Ib = diag([0.9413, 0.9200, 0.2691])*1; % SRBD MoI (included body, hips, and thighs)
 
 %% State-space A & B matrices  (dynamics are done in world frame)
 B=repmat({zeros(13,12)},h,1);
@@ -57,7 +60,7 @@ for i = 1 : h
         zeros(1,13)];
     Bc=[zeros(3,3),zeros(3,3),zeros(3,3),zeros(3,3);
         zeros(3,3),zeros(3,3),zeros(3,3),zeros(3,3);
-        I\skew2(-x_ref(4:6,i) + foot_ref(1:3,1)), I\skew2(-x_ref(4:6,i) + foot_ref(4:6,1)), I\eye(3), I\eye(3);
+        I\skew2(-x_ref(4:6,i) + foot_ref(1:3,i)), I\skew2(-x_ref(4:6,i) + foot_ref(4:6,i)), I\eye(3), I\eye(3);
         eye(3)/m, eye(3)/m, zeros(3),zeros(3);
         zeros(1,12)];
 
@@ -106,7 +109,6 @@ L=diag(L10);
 alpha10 = repmat(alpha,1,h);
 K = diag(alpha10);
 % MPC->QP math -> Condensed form
-size(K)
 Hd = 2*(Bqp'*L*Bqp+K);
 fd = 2*Bqp'*L*(Aqp*x_fb-y);  
 
@@ -124,19 +126,19 @@ A_mu = [1,0,-mu,zeros(1,9);
     zeros(1,3),0,1,-mu,zeros(1,6); 
     zeros(1,3),1,0,mu,zeros(1,6); 
     zeros(1,3),0,1,mu,zeros(1,6)];
-A_mu_h = blkdiag(A_mu,A_mu,A_mu,A_mu,A_mu,A_mu,A_mu,A_mu,A_mu,A_mu);
+A_mu_h = kron(eye(h),A_mu);
 lba_mu = repmat([smallNum;smallNum;0;0; smallNum;smallNum;0;0],h,1);
 uba_mu = repmat([0;0;bigNum;bigNum; 0;0;bigNum;bigNum],h,1);
 
 %force limit constraint:
 A_f = eye(12);
-A_f_h = blkdiag(A_f,A_f,A_f,A_f,A_f,A_f,A_f,A_f,A_f,A_f);
-[u_min, u_max] = getSaturations(contact, mpc)
+A_f_h = kron(eye(h),A_f);
+[u_min, u_max] = getSaturations(contact, mpc);
 lba_force = u_min; 
 uba_force = u_max;
 
 % CCW
-lt = 0.16-0.0; lh = 0.06-0.0;% line foot lengths
+lt = 0.16+0.0; lh = 0.06+0.0;% line foot lengths
 A_LF1=[-lh*[0,0,1]*R_foot_R',zeros(1,3),[0,1,0]*R_foot_R',zeros(1,3);
     -lt*[0,0,1]*R_foot_R',zeros(1,3),-[0,1,0]*R_foot_R',zeros(1,3);
     zeros(1,3),-lh*[0,0,1]*R_foot_L',zeros(1,3),[0,1,0]*R_foot_L';
@@ -152,15 +154,23 @@ A_LF2 = 1*[ [0, lt, -mu*lt]*R_foot_R', zeros(1,3), [0, -mu, -1]*R_foot_R', zeros
 uba_LF = repmat(zeros(12,1),h,1); 
 lba_LF = repmat(ones(12,1)*smallNum,h,1);
 A_LF = [A_LF1;A_LF2]; 
-A_LF_h = blkdiag(A_LF,A_LF,A_LF,A_LF,A_LF,A_LF,A_LF,A_LF,A_LF,A_LF);
+A_LF_h =kron(eye(h), A_LF);
+
+% foot moment Mx=0: 
+Moment_selection=[1,0,0];
+A_M = [zeros(1,3),zeros(1,3),Moment_selection*R_foot_R',zeros(1,3);
+    zeros(1,3),zeros(1,3),zeros(1,3),Moment_selection*R_foot_L'];
+A_M_h = kron(eye(h),A_M);
+uba_M = zeros(2*h,1);
+lba_M = uba_M;
 
 % Constraint Aggregation:
-A_size = size([A_mu_h; A_f_h; A_LF_h]);
+A_size = size([A_mu_h; A_f_h; A_LF_h; A_M_h]);
 A = DM(A_size(1),A_size(2)); 
-A(:,:) = [A_mu_h; A_f_h; A_LF_h*1]; % row 1-80
+A(:,:) = [A_mu_h; A_f_h; A_LF_h; A_M_h*0]; % row 1-80
 
-lba = [lba_mu; lba_force; lba_LF];
-uba = [uba_mu; uba_force; uba_LF];
+lba = [lba_mu; lba_force; lba_LF; lba_M];
+uba = [uba_mu; uba_force; uba_LF; uba_M];
 
 %% QPOASES setup:
 Hsize = size(Hd);
@@ -173,9 +183,9 @@ g = DM(fd);
 qp = struct;
 qp.h = H.sparsity();
 qp.a = A.sparsity();
-opts = struct('enableEqualities', 1, 'printLevel', 'low',...
-    'enableFullLITests',0);
+opts = struct('printLevel', 'low');
 S = conic('S','qpoases',qp,opts);
+% S = conic('S','osqp',qp);
 % disp(S)
 r = S('h', H, 'g', g, 'a', A, 'lba',lba, 'uba', uba);
 
@@ -203,7 +213,7 @@ function x_ref = getReferenceTrajectory(x_fb, mpc)
     x_ref(:,1) = [x_fb];
     for i = 1:6
         for k = 2:h
-            if mpc.x_cmd(i+3) ~= 0
+            if mpc.x_cmd(i+6) ~= 0
                 x_ref(i,k) = x_fb(i)+mpc.x_cmd(i+6)*((k-1)*dt);
             else
                 x_ref(i,k) = mpc.x_cmd(i);
@@ -238,6 +248,11 @@ if sum(contact(1,:)) == 1
 else
     foot_ref = repmat(foot_0,1,mpc.h);
 end
+
+foot_ref = repmat(foot_0,1,mpc.h);
+foot_ref(3,:) = foot_ref(3,:)*0;
+foot_ref(6,:) = foot_ref(6,:)*0;
+
 end
 
 function [u_min, u_max] = getSaturations(contact, mpc)

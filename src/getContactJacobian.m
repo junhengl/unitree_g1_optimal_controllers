@@ -62,7 +62,7 @@ Jr_L=jacobian(r_L(1:3,1),q_L);
 
 Jo_R=[o_R{1}*[0;1;0],o_R{2}*[1;0;0],o_R{3}*[0;0;1],o_R{4}*[0;1;0],o_R{5}*[0;1;0],o_R{6}*[1;0;0]];
 Jo_L=[o_L{1}*[0;1;0],o_L{2}*[1;0;0],o_L{3}*[0;0;1],o_L{4}*[0;1;0],o_L{5}*[0;1;0],o_L{6}*[1;0;0]];
-Jc=[Jr_R; Jo_R; Jr_L; Jo_L]; % right force, left force, right moment, left moment 
+Jc=[Jr_R; Jo_R; Jr_L; Jo_L]; 
 Contact_Jacobian=matlabFunction(Jc);
 
 Rotm_foot=matlabFunction([o_R{7};o_L{7}]); % additional output, foot orientation, size=[6,3]

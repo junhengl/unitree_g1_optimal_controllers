@@ -15,29 +15,29 @@ end
 
 % control parameters
 mpc.x_cmd = [0; 0+0*sin(pi*t);0;
-             0;0;0.85+0*sin(pi*t/2); 
+             0;0;0.8+0*sin(pi*t/2); 
              0;0;0; 
-             0;0;0];
+             0.5;0;0];
 mpc.dt = 0.05; % native mpc frequency
 mpc.h = 10;
 mpc.g = 9.81;
 mpc.mu = 0.7;
 mpc.hyperSampling = 10; 
-mpc.Q = [800 800 300, 700 300 1000, 1 1 1, 1 1 10, 1];
-mpc.R = ones(1,12)*1e-6;
+mpc.Q = [500 500 300, 200 600 400, 1 1 1, 1 1 1, 1];
+mpc.R = ones(1,12)*1e-5;
 mpc.f_max = [1000; 1000; 1000];
 mpc.f_min = [0; 0; 0];
 mpc.m_max = [40; 40; 40];
 mpc.m_min = -mpc.m_max;
 mpc.kp_l = diag([1,1,1])*1000;
-mpc.kd_l = diag([1,1,1])*10;
-mpc.kp_r = diag([1,1,1])*0;
-mpc.kd_r = diag([1,1,1])*0;
-mpc.swingHeight = 0.1;
-mpc.kv = 0.00;
+mpc.kd_l = diag([1,1,1])*3;
+mpc.kp_r = diag([0,1,0])*100;
+mpc.kd_r = diag([0,1,0])*2;
+mpc.swingHeight = 0.2;
+mpc.kv = 0.03;
 
 %% gait generator
-if t <= 10
+if t <= 0
     gaitNumber = 0;
 else
     gaitNumber = 1;
@@ -68,9 +68,13 @@ function contact = gait(n,t, mpc)
 end
 
 function contact = getContactSequence(t, mpc)
-    contact = [1,1,1,1,1, 0,0,0,0,0, 1,1,1,1,1, 0,0,0,0,0;
-               0,0,0,0,0, 1,1,1,1,1, 0,0,0,0,0, 1,1,1,1,1]';
+    contact = [1,1,1,1,1, 0,0,0,0,0, 1,1,1,1,1, 0,0,0,0,0, 1,1,1,1,1, 0,0,0,0,0, 1,1,1,1,1, 0,0,0,0,0;
+               0,0,0,0,0, 1,1,1,1,1, 0,0,0,0,0, 1,1,1,1,1, 0,0,0,0,0, 1,1,1,1,1, 0,0,0,0,0, 1,1,1,1,1]';
+    % contact = [1,1,1,1,1, 0,0,1,1,1, 1,1,1,1,1, 0,0,1,1,1;
+    %            0,0,1,1,1, 1,1,1,1,1, 0,0,1,1,1, 1,1,1,1,1]';
+    % contact = [1,1,1,1,1, 1,1,1,1,1, 0,0,0,0,0, 1,1,1,1,1, 1,1,1,1,1, 0,0,0,0,0;
+    %            0,0,0,0,0, 1,1,1,1,1, 1,1,1,1,1, 0,0,0,0,0, 1,1,1,1,1, 1,1,1,1,1]';
     phase = floor(t/mpc.dt);
-    k = rem(phase,mpc.h)+1;
+    k = rem(phase,mpc.h)+1
     contact = contact(k:k+mpc.h-1, :);
 end
